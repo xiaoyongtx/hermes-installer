@@ -1,0 +1,7 @@
+*.dmg
+*.exe
+*.msi
+*.pkg
+*.tar.gz
+*.whl
+.DS_Store

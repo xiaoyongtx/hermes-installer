@@ -5,3 +5,5 @@
 *.tar.gz
 *.whl
 .DS_Store
+*.crdownload
+__pycache__/

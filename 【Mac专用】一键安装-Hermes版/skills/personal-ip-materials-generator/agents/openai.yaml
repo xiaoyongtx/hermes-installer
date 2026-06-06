@@ -1,0 +1,4 @@
+interface:
+  display_name: "个人IP素材库生成器"
+  short_description: "通过12问生成可复制的个人IP文案素材"
+  default_prompt: "Use $personal-ip-materials-generator to collect my personal IP information and generate ready-to-use copy assets."

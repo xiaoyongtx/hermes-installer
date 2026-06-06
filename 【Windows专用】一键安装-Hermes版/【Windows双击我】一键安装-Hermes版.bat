@@ -119,6 +119,28 @@ if exist "%LOCAL_PYTHON_PKGS%\requirements.txt" (
     "%HERMES_REPO%\venv\Scripts\pip.exe" install -e "%HERMES_REPO%" 2>nul
 )
 
+:: 创建 hermes 命令包装脚本
+echo  [*] 正在创建 hermes 命令...
+set HERMES_BIN=%USERPROFILE%\AppData\Local\Microsoft\WindowsApps
+if not exist "%HERMES_BIN%" mkdir "%HERMES_BIN%"
+
+:: 创建 hermes.bat 包装脚本
+(
+echo @echo off
+echo set PYTHONPATH=
+echo set PYTHONHOME=
+echo set HERMES_HOME=%%USERPROFILE%%\.hermes
+echo "%%HERMES_HOME%%\hermes-agent\venv\Scripts\hermes.exe" %%*
+) > "%HERMES_BIN%\hermes.bat"
+
+:: 验证 hermes 命令
+"%HERMES_BIN%\hermes.bat" --version >nul 2>&1
+if %ERRORLEVEL%==0 (
+    echo  [√] hermes 命令已创建。
+) else (
+    echo  [!] hermes 命令创建可能有问题，请检查。
+)
+
 :hermes_done
 
 :: ============================================================

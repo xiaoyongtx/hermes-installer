@@ -274,6 +274,40 @@ HERMES_WRAPPER
 fi
 
 # ============================================================
+# 第3.5步：安装预置技能
+# ============================================================
+echo ""
+echo "  ========================================"
+echo "  [3.5/6] 安装预置技能..."
+echo "  ========================================"
+
+HERMES_SKILLS_DIR="${HERMES_HOME:-$HOME/.hermes}/skills"
+SRC_SKILLS="$PACK_DIR/skills"
+
+if [[ -d "$SRC_SKILLS" ]]; then
+    mkdir -p "$HERMES_SKILLS_DIR"
+    info "正在安装预置技能到 $HERMES_SKILLS_DIR ..."
+
+    # 遍历 skills 目录下的每个技能文件夹
+    for skill_dir in "$SRC_SKILLS"/*/; do
+        if [[ -d "$skill_dir" ]]; then
+            skill_name=$(basename "$skill_dir")
+            # 跳过隐藏文件（如 .DS_Store）
+            if [[ "$skill_name" == .* ]]; then
+                continue
+            fi
+            # 复制技能（-rn 不覆盖已存在的文件）
+            cp -rn "${skill_dir%/}" "$HERMES_SKILLS_DIR/" 2>/dev/null || true
+            ok "技能已安装: $skill_name"
+        fi
+    done
+
+    ok "预置技能安装完成。"
+else
+    info "未找到预置技能文件夹，跳过。"
+fi
+
+# ============================================================
 # 第4步：安装 CC-Switch（模型切换工具）
 # ============================================================
 echo ""

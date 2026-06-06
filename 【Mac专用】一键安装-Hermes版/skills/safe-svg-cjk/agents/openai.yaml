@@ -1,0 +1,4 @@
+interface:
+  display_name: "Safe SVG CJK"
+  short_description: "Write CJK SVGs without mojibake"
+  default_prompt: "Create or repair an SVG with Chinese/CJK text using UTF-8-safe writing and validation."

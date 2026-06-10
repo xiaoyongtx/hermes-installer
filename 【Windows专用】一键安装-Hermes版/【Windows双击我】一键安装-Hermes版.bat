@@ -69,79 +69,84 @@ if %PYTHON_OK%==0 (
 set PATH=%LOCALAPPDATA%\Programs\Python\Python311;%LOCALAPPDATA%\Programs\Python\Python311\Scripts;%PATH%
 
 :: ============================================================
-:: 第2步：安装 Hermes Agent
+:: 第2步：安装 Hermes 桌面版
 :: ============================================================
 echo.
 echo  ========================================
-echo  [2/5] 检查 Hermes Agent...
+echo  [2/5] 检查 Hermes 桌面版...
 echo  ========================================
 
 set HERMES_HOME=%USERPROFILE%\.hermes
-set HERMES_REPO=%HERMES_HOME%\hermes-agent
 
-if exist "%HERMES_REPO%\venv\Scripts\hermes.exe" (
-    echo  [√] Hermes Agent 已安装，跳过。
+:: 检查是否已安装（常见安装路径）
+set HERMES_DESKTOP_EXE=
+if exist "%LOCALAPPDATA%\Programs\hermes-cn-desktop\Hermes Agent CN Desktop.exe" (
+    set "HERMES_DESKTOP_EXE=%LOCALAPPDATA%\Programs\hermes-cn-desktop\Hermes Agent CN Desktop.exe"
+)
+if exist "%PROGRAMFILES%\Hermes Agent CN Desktop\Hermes Agent CN Desktop.exe" (
+    set "HERMES_DESKTOP_EXE=%PROGRAMFILES%\Hermes Agent CN Desktop\Hermes Agent CN Desktop.exe"
+)
+
+:: 检查 hermes CLI 是否可用
+where hermes >nul 2>&1
+if %ERRORLEVEL%==0 (
+    echo  [√] Hermes CLI 已可用。
     goto :hermes_done
 )
 
-echo  [*] 正在安装 Hermes Agent...
+if defined HERMES_DESKTOP_EXE (
+    echo  [√] Hermes 桌面版已安装。
+    goto :hermes_done
+)
 
-:: 解压 hermes-agent
-if not exist "%HERMES_HOME%" mkdir "%HERMES_HOME%"
-set LOCAL_HERMES=%PACK_DIR%installers\hermes-agent.tar.gz
+echo  [*] 正在安装 Hermes 桌面版...
+
+set LOCAL_HERMES=%PACK_DIR%installers\Hermes-Desktop-Setup.exe
 if exist "%LOCAL_HERMES%" (
-    echo  [*] 正在从本地离线包解压 hermes-agent...
-    :: Windows 需要 tar 命令（Win10+ 自带）
-    tar -xzf "%LOCAL_HERMES%" -C "%HERMES_HOME%\"
-    echo  [√] hermes-agent 离线解压完成。
+    echo  [*] 正在运行 Hermes 桌面版安装程序...
+    echo  [*] 如果弹出安装窗口，请点击"安装"按钮。
+    start /wait "" "%LOCAL_HERMES%"
+    echo  [√] Hermes 桌面版安装完成。
 ) else (
-    echo  [!] 未找到 hermes-agent 离线包。
-    echo  [*] 正在从 GitHub 克隆...
-    git clone https://github.com/NousResearch/hermes-agent.git "%HERMES_REPO%"
-)
-
-:: 创建 venv 并安装
-echo  [*] 正在创建 Python 虚拟环境...
-python -m venv "%HERMES_REPO%\venv"
-
-:: 升级 pip
-"%HERMES_REPO%\venv\Scripts\python.exe" -m pip install --upgrade pip -q 2>nul
-
-:: 安装依赖
-set LOCAL_PYTHON_PKGS=%PACK_DIR%installers\python-packages
-if exist "%LOCAL_PYTHON_PKGS%\requirements.txt" (
-    echo  [*] 正在从本地离线包安装 Python 依赖...
-    "%HERMES_REPO%\venv\Scripts\pip.exe" install --no-index --find-links "%LOCAL_PYTHON_PKGS%" -r "%LOCAL_PYTHON_PKGS%\requirements.txt" -q 2>nul
-    "%HERMES_REPO%\venv\Scripts\pip.exe" install --no-index --find-links "%LOCAL_PYTHON_PKGS%" -e "%HERMES_REPO%" -q 2>nul
-    echo  [√] Python 依赖离线安装完成。
-) else (
-    echo  [*] 正在在线安装 Hermes 依赖...
-    "%HERMES_REPO%\venv\Scripts\pip.exe" install -e "%HERMES_REPO%" 2>nul
-)
-
-:: 创建 hermes 命令包装脚本
-echo  [*] 正在创建 hermes 命令...
-set HERMES_BIN=%USERPROFILE%\AppData\Local\Microsoft\WindowsApps
-if not exist "%HERMES_BIN%" mkdir "%HERMES_BIN%"
-
-:: 创建 hermes.bat 包装脚本
-(
-echo @echo off
-echo set PYTHONPATH=
-echo set PYTHONHOME=
-echo set HERMES_HOME=%%USERPROFILE%%\.hermes
-echo "%%HERMES_HOME%%\hermes-agent\venv\Scripts\hermes.exe" %%*
-) > "%HERMES_BIN%\hermes.bat"
-
-:: 验证 hermes 命令
-"%HERMES_BIN%\hermes.bat" --version >nul 2>&1
-if %ERRORLEVEL%==0 (
-    echo  [√] hermes 命令已创建。
-) else (
-    echo  [!] hermes 命令创建可能有问题，请检查。
+    echo  [!] 未找到 Hermes 桌面版安装包。
+    echo  [*] 请手动下载: https://desktop.hermesagent.org.cn/
+    pause
+    exit /b 1
 )
 
 :hermes_done
+
+:: 确保 hermes CLI 可用（桌面版安装后可能需要刷新 PATH）
+where hermes >nul 2>&1
+if %ERRORLEVEL%==0 (
+    echo  [√] hermes CLI 已在 PATH 中。
+) else (
+    :: 桌面版可能将 hermes 安装在应用目录中，创建包装脚本
+    echo  [*] 正在配置 hermes 命令...
+    set HERMES_BIN=%USERPROFILE%\AppData\Local\Microsoft\WindowsApps
+    if not exist "%HERMES_BIN%" mkdir "%HERMES_BIN%"
+
+    :: 在常见位置搜索 hermes.exe
+    set HERMES_EXE_PATH=
+    for /r "%LOCALAPPDATA%\Programs\hermes-cn-desktop" %%f in (hermes.exe) do (
+        if exist "%%f" set "HERMES_EXE_PATH=%%f"
+    )
+    for /r "%PROGRAMFILES%\Hermes Agent CN Desktop" %%f in (hermes.exe) do (
+        if exist "%%f" set "HERMES_EXE_PATH=%%f"
+    )
+
+    if defined HERMES_EXE_PATH (
+        (
+        echo @echo off
+        echo set HERMES_HOME=%%USERPROFILE%%\.hermes
+        echo "%HERMES_EXE_PATH%" %%*
+        ) > "%HERMES_BIN%\hermes.bat"
+        echo  [√] hermes 命令已创建。
+    ) else (
+        echo  [!] 未找到 hermes 可执行文件。
+        echo  [*] 请手动将 Hermes 安装目录添加到 PATH。
+    )
+)
 
 :: ============================================================
 :: 第3步：安装 CC Switch

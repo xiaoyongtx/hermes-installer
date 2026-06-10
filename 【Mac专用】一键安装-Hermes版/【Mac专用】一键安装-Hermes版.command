@@ -76,7 +76,7 @@ export HOMEBREW_NO_AUTO_UPDATE=1
 # ============================================================
 echo ""
 echo "  ========================================"
-echo "  [1/5] 检查 Homebrew..."
+echo "  [1/6] 检查 Homebrew..."
 echo "  ========================================"
 
 if command -v brew &>/dev/null; then
@@ -88,13 +88,38 @@ else
     export HOMEBREW_BREW_GIT_REMOTE="https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/brew.git"
     export HOMEBREW_CORE_GIT_REMOTE="https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/homebrew-core.git"
     export HOMEBREW_BOTTLE_DOMAIN="https://mirrors.tuna.tsinghua.edu.cn/homebrew-bottles"
-    /bin/bash -c "$(curl -fsSL https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/install/HEAD/install.sh)" || \
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    BREW_INSTALL_OK=0
+    # 方式1：从清华镜像 clone 安装脚本（最可靠）
+    if command -v git &>/dev/null; then
+        info "从清华镜像 clone 安装脚本..."
+        BREW_INSTALL_TMP=$(mktemp -d)
+        CLONE_OUTPUT=$(git clone --depth=1 https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/install.git "$BREW_INSTALL_TMP/brew-install" 2>&1)
+        if [[ $? -eq 0 ]]; then
+            echo "$CLONE_OUTPUT" | tail -1
+            /bin/bash "$BREW_INSTALL_TMP/brew-install/install.sh" && \
+            BREW_INSTALL_OK=1
+        fi
+        rm -rf "$BREW_INSTALL_TMP"
+    fi
+    # 方式2：curl 下载官方安装脚本
+    if [[ "$BREW_INSTALL_OK" == "0" ]]; then
+        info "git 方式失败，尝试 curl 下载官方安装脚本..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && \
+        BREW_INSTALL_OK=1
+    fi
     if [[ -f "/opt/homebrew/bin/brew" ]]; then
         eval "$(/opt/homebrew/bin/brew shellenv)"
         echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
     fi
-    ok "Homebrew 安装完成。"
+    if [[ "$BREW_INSTALL_OK" == "1" ]] || command -v brew &>/dev/null; then
+        ok "Homebrew 安装完成。"
+    else
+        fail "Homebrew 安装失败，请先手动安装 Homebrew："
+        fail "  git clone --depth=1 https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/install.git brew-install"
+        fail "  /bin/bash brew-install/install.sh"
+        fail "  rm -rf brew-install"
+        exit 1
+    fi
 fi
 
 # ============================================================
@@ -102,7 +127,7 @@ fi
 # ============================================================
 echo ""
 echo "  ========================================"
-echo "  [2/5] 检查 Python..."
+echo "  [2/6] 检查 Python..."
 echo "  ========================================"
 
 PYTHON_OK=0
@@ -121,39 +146,24 @@ else
 fi
 
 if [[ "$PYTHON_OK" == "0" ]]; then
-    PYTHON_INSTALLED=0
-    # 方式1：brew 安装
     if command -v brew &>/dev/null; then
         info "通过 brew 安装 Python 3.11..."
-        export HOMEBREW_NO_AUTO_UPDATE=1
         brew install python@3.11 2>&1 | tail -3
         if [[ -f "/opt/homebrew/bin/python3.11" ]]; then
             export PATH="/opt/homebrew/bin:$PATH"
-            PYTHON_INSTALLED=1
         fi
-    fi
-    # 方式2：本地 .pkg 安装
-    if [[ "$PYTHON_INSTALLED" == "0" ]]; then
-        LOCAL_PYTHON_PKG="$PACK_DIR/installers/python-3.11-macos.pkg"
-        if [[ -f "$LOCAL_PYTHON_PKG" ]]; then
-            info "brew 安装失败，使用本地安装包...（可能需要输入电脑密码）"
-            sudo installer -pkg "$LOCAL_PYTHON_PKG" -target / 2>/dev/null
-            # Python 安装后路径
-            if [[ -f "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3.11" ]]; then
-                export PATH="/Library/Frameworks/Python.framework/Versions/3.11/bin:$PATH"
-                PYTHON_INSTALLED=1
-            elif [[ -f "/usr/local/bin/python3.11" ]]; then
-                export PATH="/usr/local/bin:$PATH"
-                PYTHON_INSTALLED=1
-            fi
+        # 验证安装结果
+        if python3 --version &>/dev/null; then
+            PY_VER=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
+            ok "Python 安装完成（$PY_VER）。"
+        else
+            fail "Python 安装失败，请手动安装 Python 3.11+。"
+            fail "下载地址: https://www.python.org/downloads/"
+            exit 1
         fi
-    fi
-    if [[ "$PYTHON_INSTALLED" == "1" ]]; then
-        PY_VER=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
-        ok "Python 安装完成（$PY_VER）。"
     else
-        fail "Python 安装失败，请手动安装 Python 3.11+。"
-        fail "下载地址: https://www.python.org/downloads/"
+        fail "brew 不可用，无法安装 Python。"
+        fail "请先安装 Homebrew，再运行 brew install python@3.11"
         exit 1
     fi
 fi
@@ -163,7 +173,7 @@ fi
 # ============================================================
 echo ""
 echo "  ========================================"
-echo "  [3/5] 检查 Hermes Agent..."
+echo "  [3/6] 检查 Hermes Agent..."
 echo "  ========================================"
 
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
@@ -190,7 +200,7 @@ else
         info "正在从本地离线包解压 hermes-agent..."
         tar -xzf "$LOCAL_HERMES_TAR" -C "$HERMES_HOME/"
         # 初始化 git 仓库（pip install -e 需要）
-        cd "$HERMES_REPO" && git init -q && git add -A && git commit -q -m "init" 2>/dev/null; cd -
+        (cd "$HERMES_REPO" && git init -q && git add -A && git commit -q -m "init") 2>/dev/null
         ok "hermes-agent 离线解压完成。"
     else
         # 兜底：在线克隆
@@ -412,12 +422,17 @@ echo ""
 read -p "  输入数字（默认1）：" VAULT_CHOICE
 VAULT_CHOICE=${VAULT_CHOICE:-1}
 
-if [[ "$VAULT_CHOICE" == "1" ]]; then
-    VAULT_DIR="$HOME/ObsidianVaults/我的知识库"
+if [[ "$VAULT_CHOICE" == "2" ]]; then
+    while true; do
+        read -p "  请输入完整路径：" VAULT_DIR
+        if [[ "$VAULT_DIR" =~ ^(/|~) ]]; then
+            break
+        fi
+        fail "路径无效：$VAULT_DIR（必须以 / 或 ~ 开头），请重新输入（Ctrl+C 退出）。"
+    done
 else
-    read -p "  请输入完整路径：" VAULT_DIR
+    VAULT_DIR="$HOME/ObsidianVaults/我的知识库"
 fi
-VAULT_DIR=${VAULT_DIR:-"$HOME/ObsidianVaults/我的知识库"}
 
 echo ""
 info "知识库位置：$VAULT_DIR"

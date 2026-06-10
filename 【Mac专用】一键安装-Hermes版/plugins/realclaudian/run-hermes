@@ -8,17 +8,25 @@ HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 export HERMES_HOME
 mkdir -p "$HERMES_HOME"
 
-if [[ -x "$HERMES_REPO/.venv/bin/hermes" ]]; then
+# 1. 检查 PATH 中的 hermes
+if command -v hermes >/dev/null 2>&1; then
+  HERMES_BIN="$(command -v hermes)"
+# 2. 检查 Hermes 桌面版（macOS .app 内置 CLI）
+elif [[ -x "/Applications/Hermes Agent CN Desktop.app/Contents/MacOS/hermes" ]]; then
+  HERMES_BIN="/Applications/Hermes Agent CN Desktop.app/Contents/MacOS/hermes"
+elif [[ -x "$HOME/Applications/Hermes Agent CN Desktop.app/Contents/MacOS/hermes" ]]; then
+  HERMES_BIN="$HOME/Applications/Hermes Agent CN Desktop.app/Contents/MacOS/hermes"
+# 3. 检查传统 venv 安装路径
+elif [[ -x "$HERMES_REPO/.venv/bin/hermes" ]]; then
   HERMES_BIN="$HERMES_REPO/.venv/bin/hermes"
 elif [[ -x "$HERMES_REPO/venv/bin/hermes" ]]; then
   HERMES_BIN="$HERMES_REPO/venv/bin/hermes"
-elif command -v hermes >/dev/null 2>&1; then
-  HERMES_BIN="$(command -v hermes)"
 elif [[ -f "$HERMES_REPO/hermes" ]]; then
   HERMES_BIN="$HERMES_REPO/hermes"
 else
   echo "Hermes executable not found." >&2
-  echo "Set HERMES_REPO to your hermes-agent directory or install hermes on PATH." >&2
+  echo "Install Hermes Desktop from https://desktop.hermesagent.org.cn/" >&2
+  echo "Or set HERMES_REPO to your hermes-agent directory." >&2
   exit 1
 fi
 

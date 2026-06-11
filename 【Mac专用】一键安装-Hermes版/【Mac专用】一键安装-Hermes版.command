@@ -19,6 +19,17 @@ ask() { echo -e "  ${CYAN}[?]${NC} $1"; }
 # 脚本所在目录
 PACK_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+# 检测系统架构
+ARCH="$(uname -m)"
+if [[ "$ARCH" == "arm64" ]]; then
+    HOMEBREW_PREFIX="/opt/homebrew"
+    ARCH_NAME="arm64"
+else
+    HOMEBREW_PREFIX="/usr/local"
+    ARCH_NAME="x86_64"
+fi
+info "检测到架构: $ARCH_NAME"
+
 echo ""
 echo "  ╔═══════════════════════════════════════════════════╗"
 echo "  ║  Hermes + Obsidian + Claudian + CC-Switch 一键安装  ║"
@@ -27,7 +38,7 @@ echo ""
 echo "  本脚本将自动安装以下组件："
 echo "    [1] Homebrew（包管理器，已有则跳过）"
 echo "    [2] Python 3.11+（Hermes 运行环境）"
-echo "    [3] Hermes Agent（AI 编码代理）"
+echo "    [3] Hermes Agent（AI 代理）"
 echo "    [4] CC-Switch（模型切换工具）"
 echo "    [5] Obsidian（知识库主程序）"
 echo "    [6] Claudian 插件（含 Hermes 集成）"
@@ -84,40 +95,39 @@ if command -v brew &>/dev/null; then
 else
     info "正在安装 Homebrew...（可能需要输入电脑密码，输入时不会显示，输完回车即可）"
     export HOMEBREW_INSTALL_FROM_API=1
-    export HOMEBREW_API_DOMAIN="https://mirrors.tuna.tsinghua.edu.cn/homebrew-bottles/api"
-    export HOMEBREW_BREW_GIT_REMOTE="https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/brew.git"
-    export HOMEBREW_CORE_GIT_REMOTE="https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/homebrew-core.git"
-    export HOMEBREW_BOTTLE_DOMAIN="https://mirrors.tuna.tsinghua.edu.cn/homebrew-bottles"
+    export HOMEBREW_API_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles/api"
+    export HOMEBREW_BOTTLE_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles"
     BREW_INSTALL_OK=0
-    # 方式1：从清华镜像 clone 安装脚本（最可靠）
-    if command -v git &>/dev/null; then
-        info "从清华镜像 clone 安装脚本..."
-        BREW_INSTALL_TMP=$(mktemp -d)
-        CLONE_OUTPUT=$(git clone --depth=1 https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/install.git "$BREW_INSTALL_TMP/brew-install" 2>&1)
-        if [[ $? -eq 0 ]]; then
-            echo "$CLONE_OUTPUT" | tail -1
-            /bin/bash "$BREW_INSTALL_TMP/brew-install/install.sh" && \
-            BREW_INSTALL_OK=1
-        fi
-        rm -rf "$BREW_INSTALL_TMP"
+    info "正在下载 Homebrew 安装脚本..."
+    # 优先使用本地离线脚本
+    LOCAL_BREW_INSTALL="$PACK_DIR/installers/homebrew-install.sh"
+    if [[ -f "$LOCAL_BREW_INSTALL" ]]; then
+        info "使用本地离线安装脚本..."
+        /bin/bash "$LOCAL_BREW_INSTALL" && \
+        BREW_INSTALL_OK=1
     fi
-    # 方式2：curl 下载官方安装脚本
+    # 尝试 GitHub 代理下载
     if [[ "$BREW_INSTALL_OK" == "0" ]]; then
-        info "git 方式失败，尝试 curl 下载官方安装脚本..."
+        info "尝试通过代理下载..."
+        /bin/bash -c "$(curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && \
+        BREW_INSTALL_OK=1
+    fi
+    # 最后尝试直连 GitHub
+    if [[ "$BREW_INSTALL_OK" == "0" ]]; then
+        info "尝试直连 GitHub..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && \
         BREW_INSTALL_OK=1
     fi
-    if [[ -f "/opt/homebrew/bin/brew" ]]; then
-        eval "$(/opt/homebrew/bin/brew shellenv)"
-        echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+    if [[ -f "$HOMEBREW_PREFIX/bin/brew" ]]; then
+        eval "$("$HOMEBREW_PREFIX/bin/brew" shellenv)"
+        echo "eval \"\$($HOMEBREW_PREFIX/bin/brew shellenv)\"" >> ~/.zprofile
     fi
     if [[ "$BREW_INSTALL_OK" == "1" ]] || command -v brew &>/dev/null; then
         ok "Homebrew 安装完成。"
     else
         fail "Homebrew 安装失败，请先手动安装 Homebrew："
-        fail "  git clone --depth=1 https://mirrors.tuna.tsinghua.edu.cn/git/homebrew/install.git brew-install"
-        fail "  /bin/bash brew-install/install.sh"
-        fail "  rm -rf brew-install"
+        fail "  /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+        fail "  或访问官方文档: https://brew.sh/zh-cn/"
         exit 1
     fi
 fi
@@ -135,7 +145,7 @@ if command -v python3 &>/dev/null; then
     PY_VER=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
     PY_MAJOR=$(echo "$PY_VER" | cut -d. -f1)
     PY_MINOR=$(echo "$PY_VER" | cut -d. -f2)
-    if [[ "$PY_MAJOR" -ge 3 && "$PY_MINOR" -ge 11 ]]; then
+    if [[ "$PY_MAJOR" -gt 3 ]] || [[ "$PY_MAJOR" -eq 3 && "$PY_MINOR" -ge 11 ]]; then
         ok "Python 已安装（$PY_VER），满足要求。"
         PYTHON_OK=1
     else
@@ -149,16 +159,16 @@ if [[ "$PYTHON_OK" == "0" ]]; then
     if command -v brew &>/dev/null; then
         info "通过 brew 安装 Python 3.11..."
         brew install python@3.11 2>&1 | tail -3
-        if [[ -f "/opt/homebrew/bin/python3.11" ]]; then
-            export PATH="/opt/homebrew/bin:$PATH"
+        if [[ -f "$HOMEBREW_PREFIX/bin/python3.11" ]]; then
+            export PATH="$HOMEBREW_PREFIX/bin:$PATH"
         fi
         # 验证安装结果
         if python3 --version &>/dev/null; then
             PY_VER=$(python3 --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
             ok "Python 安装完成（$PY_VER）。"
         else
-            fail "Python 安装失败，请手动安装 Python 3.11+。"
-            fail "下载地址: https://www.python.org/downloads/"
+            fail "Python 安装失败，请手动安装："
+            fail "  brew install python@3.11"
             exit 1
         fi
     else
@@ -167,6 +177,10 @@ if [[ "$PYTHON_OK" == "0" ]]; then
         exit 1
     fi
 fi
+
+# 保存验证过的 Python 路径，供后续步骤复用
+PYTHON_BIN="$(command -v python3)"
+info "使用 Python: $PYTHON_BIN"
 
 # ============================================================
 # 第3步：安装 Hermes Agent
@@ -214,7 +228,7 @@ else
 
     # 创建 venv 并安装（必须用 Python 3.11+）
     PYTHON311=""
-    for p in /opt/homebrew/bin/python3.11 /usr/local/bin/python3.11 /opt/homebrew/bin/python3.12 /usr/local/bin/python3.12 "$(command -v python3.11 2>/dev/null)" "$(command -v python3.12 2>/dev/null)"; do
+    for p in "$HOMEBREW_PREFIX/bin/python3.11" "$HOMEBREW_PREFIX/bin/python3.12" "$(command -v python3.11 2>/dev/null)" "$(command -v python3.12 2>/dev/null)"; do
         if [[ -n "$p" && -x "$p" ]]; then
             PYTHON311="$p"
             break
@@ -227,28 +241,29 @@ else
     info "正在创建 Python 虚拟环境（$PYTHON311）..."
     "$PYTHON311" -m venv "$HERMES_REPO/venv"
 
-    # 升级 pip
+    # 升级 pip 并配置中科大镜像源（仅影响本脚本环境，不修改全局配置）
+    info "正在升级 pip..."
     "$HERMES_REPO/venv/bin/pip" install --upgrade pip -q 2>/dev/null
+    PIP_MIRROR="https://mirrors.ustc.edu.cn/pypi/web/simple"
 
-    # 优先使用本地离线包安装依赖
-    LOCAL_PYTHON_PKGS="$PACK_DIR/installers/python-packages"
-    if [[ -d "$LOCAL_PYTHON_PKGS" && -f "$LOCAL_PYTHON_PKGS/requirements.txt" ]]; then
+    # arm64 使用离线包，x86_64 走在线安装
+    LOCAL_PYTHON_PKGS="$PACK_DIR/installers/python-packages-arm64"
+    if [[ "$ARCH_NAME" == "arm64" && -d "$LOCAL_PYTHON_PKGS" && -f "$LOCAL_PYTHON_PKGS/requirements.txt" ]]; then
         info "正在从本地离线包安装 Python 依赖..."
         # 第一步：从本地 wheels 安装所有依赖
-        "$HERMES_REPO/venv/bin/pip" install --no-index --find-links "$LOCAL_PYTHON_PKGS" -r "$LOCAL_PYTHON_PKGS/requirements.txt" -q 2>&1 | tail -3
-        # 第二步：安装 hermes-agent（editable 模式，--no-index 阻止联网，--find-links 提供本地包）
-        "$HERMES_REPO/venv/bin/pip" install --no-index --find-links "$LOCAL_PYTHON_PKGS" -e "$HERMES_REPO" -q 2>&1 | tail -3
+        "$HERMES_REPO/venv/bin/pip" install --no-index --find-links "$LOCAL_PYTHON_PKGS" -r "$LOCAL_PYTHON_PKGS/requirements.txt" -q
+        # 第二步：安装 hermes-agent（editable 模式）
+        "$HERMES_REPO/venv/bin/pip" install --no-index --find-links "$LOCAL_PYTHON_PKGS" -e "$HERMES_REPO" -q
         # 第三步：验证 hermes 命令可用
         if "$HERMES_REPO/venv/bin/hermes" --version &>/dev/null; then
             ok "Python 依赖离线安装完成。"
         else
             fail "hermes 命令不可用，尝试修复..."
-            # 用非 editable 模式重试（更可靠的 entry point 创建）
-            "$HERMES_REPO/venv/bin/pip" install --no-index --find-links "$LOCAL_PYTHON_PKGS" "$HERMES_REPO" -q 2>&1 | tail -3
+            "$HERMES_REPO/venv/bin/pip" install --no-index --find-links "$LOCAL_PYTHON_PKGS" "$HERMES_REPO" -q
         fi
     else
         info "正在在线安装 Hermes 依赖（可能需要几分钟）..."
-        "$HERMES_REPO/venv/bin/pip" install -e "$HERMES_REPO" 2>&1 | tail -3
+        "$HERMES_REPO/venv/bin/pip" install -i "$PIP_MIRROR" -e "$HERMES_REPO"
     fi
 
     # 创建 ~/.local/bin/hermes 包装脚本
@@ -265,15 +280,19 @@ HERMES_WRAPPER
     # 确保 ~/.local/bin 在 PATH 中
     if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
         export PATH="$HOME/.local/bin:$PATH"
-        # 写入 shell profile
-        for profile in ~/.zshrc ~/.bash_profile ~/.bashrc; do
-            if [[ -f "$profile" ]]; then
-                if ! grep -q '.local/bin' "$profile" 2>/dev/null; then
-                    echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$profile"
-                fi
-                break
-            fi
-        done
+        # 写入 shell profile：优先当前 shell 的配置文件
+        case "$(basename "$SHELL")" in
+            zsh)  PROFILE_TARGET="$HOME/.zshrc" ;;
+            bash) PROFILE_TARGET="$([[ -f "$HOME/.bash_profile" ]] && echo "$HOME/.bash_profile" || echo "$HOME/.bashrc")" ;;
+            fish) PROFILE_TARGET="$HOME/.config/fish/config.fish" ;;
+            *)    PROFILE_TARGET="$HOME/.profile" ;;
+        esac
+        # 确保父目录存在
+        mkdir -p "$(dirname "$PROFILE_TARGET")" 2>/dev/null
+        if ! grep -q '.local/bin' "$PROFILE_TARGET" 2>/dev/null; then
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$PROFILE_TARGET"
+            info "已将 PATH 写入: $PROFILE_TARGET"
+        fi
     fi
 
     if "$HOME/.local/bin/hermes" --version &>/dev/null; then
@@ -332,21 +351,21 @@ else
     LOCAL_CC_DMG="$PACK_DIR/installers/CC-Switch.dmg"
     if [[ -f "$LOCAL_CC_DMG" ]]; then
         info "正在从本地安装包安装 CC Switch..."
-        hdiutil attach "$LOCAL_CC_DMG" -quiet -nobrowse 2>/dev/null
-        CC_MOUNT=$(ls -d "/Volumes/CC Switch"* /Volumes/CC-Switch* 2>/dev/null | head -1)
-        if [[ -n "$CC_MOUNT" && -d "$CC_MOUNT/CC Switch.app" ]]; then
-            cp -R "$CC_MOUNT/CC Switch.app" /Applications/ 2>/dev/null
+        # 通过 hdiutil attach 输出解析实际挂载点，避免通配符匹配缺陷
+        CC_MOUNT=$(hdiutil attach "$LOCAL_CC_DMG" -nobrowse 2>/dev/null | tail -1 | awk -F'\t' '{print $NF}')
+        if [[ -n "$CC_MOUNT" && -d "$CC_MOUNT" ]]; then
+            # 在挂载卷中查找 .app（兼容不同的 .app 命名）
+            CC_APP=$(find "$CC_MOUNT" -maxdepth 2 -name "*.app" -type d 2>/dev/null | head -1)
+            if [[ -n "$CC_APP" ]]; then
+                cp -R "$CC_APP" /Applications/ 2>/dev/null
+                ok "CC Switch 安装完成。"
+                CC_INSTALLED=1
+            else
+                fail "在 DMG 中未找到 CC Switch .app。"
+            fi
             hdiutil detach "$CC_MOUNT" -quiet 2>/dev/null
-        elif [[ -n "$CC_MOUNT" && -d "$CC_MOUNT/CC-Switch.app" ]]; then
-            cp -R "$CC_MOUNT/CC-Switch.app" /Applications/ 2>/dev/null
-            hdiutil detach "$CC_MOUNT" -quiet 2>/dev/null
-        fi
-        if [[ -d "/Applications/CC Switch.app" ]]; then
-            ok "CC Switch 安装完成。"
-            CC_INSTALLED=1
         else
-            fail "CC Switch 安装失败，请手动安装。"
-            hdiutil detach "/Volumes/CC Switch"* /Volumes/CC-Switch* -quiet 2>/dev/null
+            fail "DMG 挂载失败，请手动安装。"
         fi
     else
         info "未找到 CC Switch 离线包，跳过。"
@@ -376,10 +395,13 @@ else
     fi
     if [[ -n "$LOCAL_DMG" ]]; then
         info "正在从本地安装包安装 Obsidian..."
-        hdiutil attach "$LOCAL_DMG" -quiet -nobrowse 2>/dev/null
-        MOUNT_VOL=$(ls -d /Volumes/Obsidian* 2>/dev/null | head -1)
-        if [[ -n "$MOUNT_VOL" && -d "$MOUNT_VOL/Obsidian.app" ]]; then
-            cp -R "$MOUNT_VOL/Obsidian.app" /Applications/ 2>/dev/null
+        # 通过 hdiutil attach 输出解析实际挂载点
+        MOUNT_VOL=$(hdiutil attach "$LOCAL_DMG" -nobrowse 2>/dev/null | tail -1 | awk -F'\t' '{print $NF}')
+        if [[ -n "$MOUNT_VOL" && -d "$MOUNT_VOL" ]]; then
+            OBS_APP=$(find "$MOUNT_VOL" -maxdepth 2 -name "Obsidian.app" -type d 2>/dev/null | head -1)
+            if [[ -n "$OBS_APP" ]]; then
+                cp -R "$OBS_APP" /Applications/ 2>/dev/null
+            fi
             hdiutil detach "$MOUNT_VOL" -quiet 2>/dev/null
         fi
         if [[ -d "/Applications/Obsidian.app" ]]; then
@@ -387,7 +409,6 @@ else
             OBSIDIAN_INSTALLED=1
         else
             fail "本地 .dmg 安装失败，尝试在线安装..."
-            hdiutil detach /Volumes/Obsidian* -quiet 2>/dev/null
         fi
     fi
     if [[ "$OBSIDIAN_INSTALLED" == "0" ]]; then
@@ -406,7 +427,7 @@ else
 fi
 
 # ============================================================
-# 第5步：安装 Claudian 插件 + 配置
+# 第6步：安装 Claudian 插件 + 配置
 # ============================================================
 echo ""
 echo "  ========================================"
@@ -472,13 +493,9 @@ if [[ -d "$SRC_VAULT" ]]; then
     ok "知识库模板导入完成。"
 fi
 
-# ============================================================
-# 第5.5步：配置 Claudian 插件
-# ============================================================
+# 配置 Claudian 插件（续）
 echo ""
-echo "  ========================================"
-echo "  [5.5] 自动配置 Claudian 插件..."
-echo "  ========================================"
+info "自动配置 Claudian 插件..."
 
 # 确保 .claudian 目录存在
 mkdir -p "$VAULT_DIR/.claudian"
@@ -488,7 +505,7 @@ RUN_HERMES_PATH="$PLUGINS_DIR/realclaudian/run-hermes"
 
 # 写入 claudian-settings.json
 info "写入 Claudian 配置..."
-python3 << PYEOF
+"$PYTHON_BIN" << PYEOF
 import json, os
 
 settings_path = '$CLAUDIAN_SETTINGS'
@@ -537,7 +554,7 @@ ok "Claudian 配置已写入: $CLAUDIAN_SETTINGS"
 
 # 写入 data.json（环境变量）
 DATA_JSON="$PLUGINS_DIR/realclaudian/data.json"
-python3 << PYEOF
+"$PYTHON_BIN" << PYEOF
 import json, os
 
 data_path = '$DATA_JSON'

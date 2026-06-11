@@ -30,6 +30,9 @@ else
 fi
 info "检测到架构: $ARCH_NAME"
 
+# 移除 macOS 隔离属性（zip 解压后所有文件会被标记 quarantine，导致 "Operation not permitted"）
+xattr -rd com.apple.quarantine "$PACK_DIR" 2>/dev/null || true
+
 echo ""
 echo "  ╔═══════════════════════════════════════════════════╗"
 echo "  ║  Hermes + Obsidian + Claudian + CC-Switch 一键安装  ║"
@@ -94,33 +97,43 @@ if command -v brew &>/dev/null; then
     ok "Homebrew 已安装，跳过。"
 else
     info "正在安装 Homebrew...（可能需要输入电脑密码，输入时不会显示，输完回车即可）"
+    # 中科大镜像源
     export HOMEBREW_INSTALL_FROM_API=1
+    export HOMEBREW_BREW_GIT_REMOTE="https://mirrors.ustc.edu.cn/brew.git"
     export HOMEBREW_API_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles/api"
     export HOMEBREW_BOTTLE_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles"
     BREW_INSTALL_OK=0
-    info "正在下载 Homebrew 安装脚本..."
-    # 优先使用本地离线脚本
+
+    # 策略1：本地离线脚本 + 镜像环境变量
     LOCAL_BREW_INSTALL="$PACK_DIR/installers/homebrew-install.sh"
     if [[ -f "$LOCAL_BREW_INSTALL" ]]; then
         info "使用本地离线安装脚本..."
-        /bin/bash "$LOCAL_BREW_INSTALL" && \
-        BREW_INSTALL_OK=1
+        /bin/bash "$LOCAL_BREW_INSTALL" && BREW_INSTALL_OK=1
     fi
-    # 尝试 GitHub 代理下载
+
+    # 策略2：通过 Gitee 镜像下载安装脚本（仅拉脚本，brew 本体仍走镜像环境变量）
     if [[ "$BREW_INSTALL_OK" == "0" ]]; then
-        info "尝试通过代理下载..."
-        /bin/bash -c "$(curl -fsSL https://ghfast.top/https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && \
-        BREW_INSTALL_OK=1
+        info "通过 Gitee 镜像下载安装脚本..."
+        /bin/bash -c "$(curl -fsSL https://gitee.com/ineo6/homebrew-install/raw/master/install.sh)" && BREW_INSTALL_OK=1
     fi
-    # 最后尝试直连 GitHub
+
+    # 策略3：直连 GitHub（最后尝试）
     if [[ "$BREW_INSTALL_OK" == "0" ]]; then
         info "尝试直连 GitHub..."
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && \
-        BREW_INSTALL_OK=1
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && BREW_INSTALL_OK=1
     fi
+
     if [[ -f "$HOMEBREW_PREFIX/bin/brew" ]]; then
         eval "$("$HOMEBREW_PREFIX/bin/brew" shellenv)"
         echo "eval \"\$($HOMEBREW_PREFIX/bin/brew shellenv)\"" >> ~/.zprofile
+        # 持久化中科大镜像配置
+        cat >> ~/.zprofile << 'BREW_MIRROR_EOF'
+
+# Homebrew 中科大镜像
+export HOMEBREW_BREW_GIT_REMOTE="https://mirrors.ustc.edu.cn/brew.git"
+export HOMEBREW_API_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles/api"
+export HOMEBREW_BOTTLE_DOMAIN="https://mirrors.ustc.edu.cn/homebrew-bottles"
+BREW_MIRROR_EOF
     fi
     if [[ "$BREW_INSTALL_OK" == "1" ]] || command -v brew &>/dev/null; then
         ok "Homebrew 安装完成。"

@@ -44182,7 +44182,8 @@ var SessionStorage = class {
       externalContextPaths: conversation.externalContextPaths,
       enabledMcpServers: conversation.enabledMcpServers,
       usage: conversation.usage,
-      resumeAtMessageId: conversation.resumeAtMessageId
+      resumeAtMessageId: conversation.resumeAtMessageId,
+      messages: conversation.messages
     };
   }
   async getLoadPath(id) {
@@ -96473,7 +96474,7 @@ var ClaudianPlugin = class extends import_obsidian48.Plugin {
         lastResponseAt: meta3.lastResponseAt,
         sessionId: resumeSessionId,
         providerState: meta3.providerState,
-        messages: [],
+        messages: meta3.messages || [],
         currentNote: meta3.currentNote,
         externalContextPaths: meta3.externalContextPaths,
         enabledMcpServers: meta3.enabledMcpServers,

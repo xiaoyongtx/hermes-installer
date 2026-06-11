@@ -13,16 +13,16 @@ Mac 和 Windows 版的一键安装包，包含 Hermes Agent、Obsidian、Claudia
 
 ### Mac 版
 
-1. 进入 `【Mac专用】一键安装-Hermes版` 文件夹
-2. 双击 `【Mac专用】一键安装-Hermes版.command`
+1. 进入 `Mac专用一键安装Hermes版` 文件夹
+2. 双击 `Mac一键安装Hermes版.command`
 3. 按照提示完成安装
 4. 打开 CC-Switch 配置 API Key
 5. 打开 Obsidian 选择知识库路径
 
 ### Windows 版
 
-1. 进入 `【Windows专用】一键安装-Hermes版` 文件夹
-2. 双击 `【Windows双击我】一键安装-Hermes版.bat`
+1. 进入 `Windows一键安装Hermes版` 文件夹
+2. 双击 `Windows一键安装Hermes版.bat`
 3. 按照提示完成安装
 4. 打开 CC-Switch 配置 API Key
 5. 打开 Obsidian 选择知识库路径
@@ -32,7 +32,7 @@ Mac 和 Windows 版的一键安装包，包含 Hermes Agent、Obsidian、Claudia
 ```
 hermes-installer/
 ├── README.md
-├── 【Mac专用】一键安装-Hermes版/
+├── Mac专用一键安装Hermes版/
 │   ├── installers/              # 离线安装包
 │   │   ├── hermes-agent.tar.gz  # Hermes Agent 源码
 │   │   ├── Obsidian-mac.dmg     # Obsidian 安装包
@@ -49,14 +49,14 @@ hermes-installer/
 │   │   ├── personal-ip-materials-generator/
 │   │   └── safe-svg-cjk/
 │   ├── vault/                   # 知识库模板
-│   ├── 【Mac专用】一键安装-Hermes版.command
-│   └── 【必读】安装说明.md
-└── 【Windows专用】一键安装-Hermes版/
+│   ├── Mac一键安装Hermes版.command
+│   └── 安装说明.md
+└── Windows一键安装Hermes版/
     ├── installers/              # 离线安装包
     ├── plugins/                 # Obsidian 插件
     ├── vault/                   # 知识库模板
-    ├── 【Windows双击我】一键安装-Hermes版.bat
-    └── 【必读】安装说明.md
+    ├── Windows一键安装Hermes版.bat
+    └── 安装说明.md
 ```
 
 ## 预置技能

@@ -446,7 +446,9 @@ VAULT_CHOICE=${VAULT_CHOICE:-1}
 if [[ "$VAULT_CHOICE" == "2" ]]; then
     while true; do
         read -p "  请输入完整路径：" VAULT_DIR
-        if [[ "$VAULT_DIR" =~ ^(/|~) ]]; then
+        # 展开路径中的 ~ 符号（read 不会自动展开）
+        VAULT_DIR="${VAULT_DIR/#\~/$HOME}"
+        if [[ "$VAULT_DIR" =~ ^/ ]]; then
             break
         fi
         fail "路径无效：$VAULT_DIR（必须以 / 或 ~ 开头），请重新输入（Ctrl+C 退出）。"

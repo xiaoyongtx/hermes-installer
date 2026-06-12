@@ -1,0 +1,3 @@
+[submodule "claudian"]
+	path = claudian
+	url = git@github.com:ricoyudog/claudian.git

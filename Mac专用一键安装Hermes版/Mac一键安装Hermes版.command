@@ -30,9 +30,6 @@ else
 fi
 info "检测到架构: $ARCH_NAME"
 
-# 移除 macOS 隔离属性（zip 解压后所有文件会被标记 quarantine，导致 "Operation not permitted"）
-xattr -rd com.apple.quarantine "$PACK_DIR" 2>/dev/null || true
-
 echo ""
 echo "  ╔═══════════════════════════════════════════════════╗"
 echo "  ║  Hermes + Obsidian + Claudian + CC-Switch 一键安装  ║"

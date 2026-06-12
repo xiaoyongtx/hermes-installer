@@ -225,13 +225,13 @@ if [[ -d "$HERMES_REPO" && -f "$HERMES_REPO/venv/bin/hermes" ]]; then
     if [[ ! -f "$HERMES_WRAPPER" ]] || ! grep -q "hermes-agent/venv/bin/hermes" "$HERMES_WRAPPER" 2>/dev/null; then
         info "正在更新 hermes 包装脚本..."
         mkdir -p "$HOME/.local/bin"
-        cat > "$HERMES_WRAPPER" << 'HERMES_WRAPPER'
+        cat > "$HERMES_WRAPPER" << EOF
 #!/usr/bin/env bash
 unset PYTHONPATH
 unset PYTHONHOME
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-exec "$HERMES_HOME/hermes-agent/venv/bin/hermes" "$@"
-HERMES_WRAPPER
+HERMES_HOME="\${HERMES_HOME:-\$HOME/.hermes}"
+exec "\$HERMES_HOME/hermes-agent/venv/bin/hermes" "\$@"
+EOF
         chmod +x "$HERMES_WRAPPER"
         ok "hermes 包装脚本已更新。"
     fi
@@ -250,17 +250,24 @@ else
     LOCAL_HERMES_TAR="$PACK_DIR/installers/hermes-agent.tar.gz"
     if [[ -f "$LOCAL_HERMES_TAR" ]]; then
         info "正在从本地离线包解压 hermes-agent..."
-        tar -xzf "$LOCAL_HERMES_TAR" -C "$HERMES_HOME/"
-        # 初始化 git 仓库（pip install -e 需要）
-        (cd "$HERMES_REPO" && git init -q && git add -A && git commit -q -m "init") 2>/dev/null
-        ok "hermes-agent 离线解压完成。"
+        if tar -xzf "$LOCAL_HERMES_TAR" -C "$HERMES_HOME/"; then
+            # 初始化 git 仓库（pip install -e 需要）
+            (cd "$HERMES_REPO" && git init -q && git add -A && git commit -q -m "init") 2>/dev/null
+            ok "hermes-agent 离线解压完成。"
+        else
+            fail "hermes-agent 解压失败，请检查安装包是否完整。"
+            exit 1
+        fi
     else
         # 兜底：在线克隆
         if [[ -d "$HERMES_REPO/.git" ]]; then
             info "hermes-agent 目录已存在但未安装，继续..."
         else
             info "正在克隆 hermes-agent 仓库..."
-            git clone https://github.com/NousResearch/hermes-agent.git "$HERMES_REPO"
+            if ! git clone https://github.com/NousResearch/hermes-agent.git "$HERMES_REPO"; then
+                fail "hermes-agent 克隆失败，请检查网络连接。"
+                exit 1
+            fi
         fi
     fi
 
@@ -306,13 +313,13 @@ else
 
     # 创建 ~/.local/bin/hermes 包装脚本
     mkdir -p "$HOME/.local/bin"
-    cat > "$HOME/.local/bin/hermes" << 'HERMES_WRAPPER'
+    cat > "$HOME/.local/bin/hermes" << EOF
 #!/usr/bin/env bash
 unset PYTHONPATH
 unset PYTHONHOME
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-exec "$HERMES_HOME/hermes-agent/venv/bin/hermes" "$@"
-HERMES_WRAPPER
+HERMES_HOME="\${HERMES_HOME:-\$HOME/.hermes}"
+exec "\$HERMES_HOME/hermes-agent/venv/bin/hermes" "\$@"
+EOF
     chmod +x "$HOME/.local/bin/hermes"
 
     # 确保 ~/.local/bin 在 PATH 中
@@ -395,9 +402,12 @@ else
             # 在挂载卷中查找 .app（兼容不同的 .app 命名）
             CC_APP=$(find "$CC_MOUNT" -maxdepth 2 -name "*.app" -type d 2>/dev/null | head -1)
             if [[ -n "$CC_APP" ]]; then
-                cp -R "$CC_APP" /Applications/ 2>/dev/null
-                ok "CC Switch 安装完成。"
-                CC_INSTALLED=1
+                if cp -R "$CC_APP" /Applications/ 2>/dev/null; then
+                    ok "CC Switch 安装完成。"
+                    CC_INSTALLED=1
+                else
+                    fail "CC Switch 复制失败，可能需要管理员权限。"
+                fi
             else
                 fail "在 DMG 中未找到 CC Switch .app。"
             fi

@@ -1,6 +1,6 @@
 #!/bin/bash
 # ============================================================
-# Hermes + Obsidian + Claudian 一键安装脚本（Mac版）v1.0
+# Hermes + Obsidian + Claudian 一键安装脚本（Mac版）v2.0.19
 # 双击 .command 文件即可运行
 # ============================================================
 
@@ -207,9 +207,37 @@ HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
 HERMES_REPO="$HERMES_HOME/hermes-agent"
 
 if [[ -d "$HERMES_REPO" && -f "$HERMES_REPO/venv/bin/hermes" ]]; then
-    ok "Hermes Agent 已安装，跳过。"
+    ok "Hermes Agent 已安装。"
     HERMES_VER=$("$HERMES_REPO/venv/bin/hermes" --version 2>&1 | head -1)
     ok "版本: $HERMES_VER"
+
+    # 检测并升级 [acp] extras（新版 Claudian 插件依赖 acp 模块）
+    PIP_MIRROR="https://mirrors.ustc.edu.cn/pypi/web/simple"
+    REQUIRES=$("$HERMES_REPO/venv/bin/pip" show hermes-agent 2>/dev/null | grep -i "^Requires:" || true)
+    if [[ "$REQUIRES" != *"acp"* ]]; then
+        info "正在升级 Hermes [acp] 依赖..."
+        if "$HERMES_REPO/venv/bin/pip" install -i "$PIP_MIRROR" -e "$HERMES_REPO[acp]" -q; then
+            ok "Hermes [acp] 依赖已升级。"
+        else
+            fail "升级 [acp] 依赖失败，可稍后手动执行：pip install -e $HERMES_REPO[acp]"
+        fi
+    fi
+
+    # 确保 ~/.local/bin/hermes 包装脚本存在且指向正确
+    HERMES_WRAPPER="$HOME/.local/bin/hermes"
+    if [[ ! -f "$HERMES_WRAPPER" ]] || ! grep -q "hermes-agent/venv/bin/hermes" "$HERMES_WRAPPER" 2>/dev/null; then
+        info "正在更新 hermes 包装脚本..."
+        mkdir -p "$HOME/.local/bin"
+        cat > "$HERMES_WRAPPER" << 'HERMES_WRAPPER'
+#!/usr/bin/env bash
+unset PYTHONPATH
+unset PYTHONHOME
+HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+exec "$HERMES_HOME/hermes-agent/venv/bin/hermes" "$@"
+HERMES_WRAPPER
+        chmod +x "$HERMES_WRAPPER"
+        ok "hermes 包装脚本已更新。"
+    fi
 else
     info "正在安装 Hermes Agent..."
 
@@ -276,7 +304,7 @@ else
         fi
     else
         info "正在在线安装 Hermes 依赖（可能需要几分钟）..."
-        "$HERMES_REPO/venv/bin/pip" install -i "$PIP_MIRROR" -e "$HERMES_REPO"
+        "$HERMES_REPO/venv/bin/pip" install -i "$PIP_MIRROR" -e "$HERMES_REPO[acp]"
     fi
 
     # 创建 ~/.local/bin/hermes 包装脚本
@@ -478,20 +506,16 @@ mkdir -p "$VAULT_DIR/.obsidian/plugins"
 PLUGINS_DIR="$VAULT_DIR/.obsidian/plugins"
 SRC_PLUGINS="$PACK_DIR/plugins"
 
-if [[ ! -d "$SRC_PLUGINS/realclaudian" ]]; then
-    fail "找不到插件文件夹：$SRC_PLUGINS/realclaudian"
+if [[ ! -d "$SRC_PLUGINS/claudian" ]]; then
+    fail "找不到插件文件夹：$SRC_PLUGINS/claudian"
     fail "请确保 plugins 文件夹和本脚本在同一目录下。"
     exit 1
 fi
 
-# 复制插件
-info "安装插件：realclaudian"
-cp -R "$SRC_PLUGINS/realclaudian" "$PLUGINS_DIR/"
-ok "realclaudian 已安装。"
-
-# 修复 run-hermes 权限
-chmod +x "$PLUGINS_DIR/realclaudian/run-hermes"
-ok "run-hermes 执行权限已设置。"
+# 复制插件（Obsidian 通过 manifest.json 中的 id 识别插件，目录名不影响）
+info "安装插件：claudian (v2.0.19)"
+cp -R "$SRC_PLUGINS/claudian" "$PLUGINS_DIR/realclaudian"
+ok "claudian 已安装。"
 
 # 导入 vault 模板
 SRC_VAULT="$PACK_DIR/vault"
@@ -508,7 +532,7 @@ if [[ -d "$SRC_VAULT" ]]; then
     ok "知识库模板导入完成。"
 fi
 
-# 配置 Claudian 插件（续）
+# 配置 Claudian 插件
 echo ""
 info "自动配置 Claudian 插件..."
 
@@ -516,7 +540,7 @@ info "自动配置 Claudian 插件..."
 mkdir -p "$VAULT_DIR/.claudian"
 
 CLAUDIAN_SETTINGS="$VAULT_DIR/.claudian/claudian-settings.json"
-RUN_HERMES_PATH="$PLUGINS_DIR/realclaudian/run-hermes"
+HERMES_BIN_PATH="$HERMES_HOME/hermes-agent/venv/bin/hermes"
 
 # 写入 claudian-settings.json
 info "写入 Claudian 配置..."
@@ -524,7 +548,7 @@ info "写入 Claudian 配置..."
 import json, os
 
 settings_path = '$CLAUDIAN_SETTINGS'
-run_hermes = '$RUN_HERMES_PATH'
+hermes_bin = '$HERMES_BIN_PATH'
 hermes_home = '$HERMES_HOME'
 
 # 如果已有配置，合并；否则创建新配置
@@ -545,9 +569,9 @@ settings['settingsProvider'] = 'hermes'
 if 'providerConfigs' not in settings:
     settings['providerConfigs'] = {}
 
-# Hermes provider 配置
+# Hermes provider 配置（直接指向 hermes 二进制，无需 run-hermes 包装脚本）
 settings['providerConfigs']['hermes'] = {
-    'cliPath': run_hermes,
+    'cliPath': hermes_bin,
     'cliPathsByHost': {},
     'enabled': True,
     'environmentHash': '',
@@ -566,32 +590,6 @@ print('  done')
 PYEOF
 
 ok "Claudian 配置已写入: $CLAUDIAN_SETTINGS"
-
-# 写入 data.json（环境变量）
-DATA_JSON="$PLUGINS_DIR/realclaudian/data.json"
-"$PYTHON_BIN" << PYEOF
-import json, os
-
-data_path = '$DATA_JSON'
-hermes_home = '$HERMES_HOME'
-
-data = {}
-if os.path.exists(data_path):
-    try:
-        with open(data_path, 'r') as f:
-            data = json.load(f)
-    except:
-        data = {}
-
-data['environmentVariables'] = [
-    {'name': 'HERMES_HOME', 'value': hermes_home}
-]
-
-with open(data_path, 'w') as f:
-    json.dump(data, f, indent=2, ensure_ascii=False)
-PYEOF
-
-ok "插件环境变量已配置。"
 
 # ============================================================
 # 完成

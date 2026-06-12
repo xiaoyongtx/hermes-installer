@@ -215,7 +215,7 @@ if exist "%LOCAL_WHEELS%\requirements.txt" (
 ) else (
     :: 在线安装（兜底）
     echo  [*] 正在在线安装 Hermes 依赖（可能需要几分钟）...
-    "%HERMES_REPO%\venv\Scripts\pip.exe" install -i https://mirrors.ustc.edu.cn/pypi/web/simple -e "%HERMES_REPO%"
+    "%HERMES_REPO%\venv\Scripts\pip.exe" install -i https://mirrors.ustc.edu.cn/pypi/web/simple -e "%HERMES_REPO%[acp]"
 )
 
 :: 创建包装脚本
